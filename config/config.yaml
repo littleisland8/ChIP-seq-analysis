@@ -1,0 +1,38 @@
+datadir: 
+aligndir: alignments
+outdir: results
+logdir: logs
+scriptdir: workflow/scripts
+
+samples:
+    sample1: 
+    sample2: 
+    sample3: 
+    sample4: 
+    sample5: 
+    sample6: 
+    sample7: 
+    sample8: 
+    sample9:
+    sample10:
+    sample11:
+    sample12:
+    sample13:
+    sample14:
+    sample15:
+    sample16:
+    sample17:
+    sample18:
+    sample19:
+    sample20:
+    sample21:
+    sample22:
+    sample23:
+    sample24:
+
+
+strand:
+   R1: 1
+   R2: 2
+
+genome: /resources/Transcriptomestic/resources/GRCh38_full_analysis_set_plus_decoy_hla.fa
