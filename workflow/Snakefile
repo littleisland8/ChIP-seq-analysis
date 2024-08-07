@@ -1,0 +1,36 @@
+configfile: "config/config.yaml"
+
+include: "rules/fastqc.smk"
+include: "rules/trim.smk"
+include: "rules/align.smk"
+include: "rules/picard.smk"
+include: "rules/preseq.smk"
+include: "rules/BigWig.smk"
+include: "rules/macs2.smk"
+
+
+rule ChIPseq:
+	input:
+		expand(f"qc/{{sample}}_{{strand}}_fastqc.html", sample=config["samples"].values(), strand=config["strand"].values()),
+		expand(f"qc/{{sample}}_{{strand}}_tr_fastqc.html", sample=config["samples"].values(), strand=config["strand"].values()),
+		expand(f"qc/{{sample}}.bwa.flagstat", sample=config["samples"].values()),
+		expand(f"qc/{{sample}}.bwa.stats", sample=config["samples"].values()),
+		expand(f"qc/{{sample}}.quality_yield_metrics", sample=config["samples"].values()),
+		#expand(f"qc/{{sample}}.est_lib_complex_metrics.txt", sample=config["samples"].values())
+		expand(f"qc/{{sample}}.lc_extrap.txt", sample=config["samples"].values()),
+		expand(f"results/{{sample}}.bigWig",sample=config["samples"].values()),
+		expand(f"peaks/narrow/IgG/{{sample}}_peaks.narrowPeak", sample=config["lactate_macs2"].values()),
+		expand(f"peaks/narrow/10_input/{{sample}}_peaks.narrowPeak", sample=config["lactate_macs2"].values()),
+		expand(f"peaks/narrow/IgG/{{sample}}_peaks.narrowPeak", sample=config["controls_macs2"].values()),
+		expand(f"peaks/narrow/10_input/{{sample}}_peaks.narrowPeak", sample=config["controls_macs2"].values()),
+		expand(f"peaks/broad/IgG/{{sample}}_peaks.broadPeak", sample=config["lactate_macs2"].values()),
+		expand(f"peaks/broad/10_input/{{sample}}_peaks.broadPeak", sample=config["lactate_macs2"].values()),
+		expand(f"peaks/broad/IgG/{{sample}}_peaks.broadPeak", sample=config["controls_macs2"].values()),
+		expand(f"peaks/broad/10_input/{{sample}}_peaks.broadPeak", sample=config["controls_macs2"].values())
+
+rule QC:
+	input:
+		expand(config["pipedir"] + "/" + f"alignments/{{sample}}.bwa.srt.bam", sample=config["samples"].values()),
+		expand(config["pipedir"] + "/" + f"alignments/{{sample}}.bwa.mdup.bai", sample=config["samples"].values()),
+		expand(f"qc/{{sample}}.bwa.raw.flagstat", sample=config["samples"].values()),
+		expand(f"qc/{{sample}}.bwa.raw.stats", sample=config["samples"].values()),

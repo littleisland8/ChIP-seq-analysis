@@ -1,86 +1,142 @@
-rule CreateSequenceDictionary:
+rule BwaIndex:
+    input:
+        config["genome"]
+    output:
+        idx=multiext(config["genome"], ".bwt", ".pac", ".ann", ".amb", ".sa"),
+    threads: 1
+    log:
+        "logs/BwaIndex.log",
+    wrapper:
+        "v3.13.1/bio/bwa/index"
+
+rule BwaAlign:
 	input:
-		config["genome"]
+		R1=config["pipedir"] + "/" + "data/{sample}_1.tr.fq.gz", 
+		R2=config["pipedir"] + "/" + "data/{sample}_2.tr.fq.gz",
+		ref=config["genome"]
 	output:
-		config["genome"].split(".fa")[0] + ".dict"
+		config["pipedir"] + "/" + "alignments/{sample}.bwa.srt.bam"
 	log:
-		"logs/CreateSequenceDictionary.log"
-	threads: 1
+		"logs/{sample}.BwaAlign.log"
+	message:
+		"Mapping reads with bwa-mem2 {wildcards.sample}"
+	threads: 5
 	conda:
-		"../envs/gatk4.yaml"
+		"../envs/align.yaml"
 	shell:
-		"java -jar picard.jar CreateSequenceDictionary -R {input} -O {output}"
+		"bwa mem -t {threads} {input.ref} {input.R1} {input.R2} |samtools sort -@ {threads} -o {output} --output-fmt BAM -T /scratch/tmp_sromagnoli/tmp5lxzdu46 2>{log}"
 
-rule bwa_align:
+rule markDuplicates:
 	input:
-		reads=["data/{sample}.R1.tr.fastq.gz", "data{sample}.R2.tr.fastq.gz"],
-		idx=multiext(config['genome'], ".amb", ".ann", ".bwt.2bit.64", ".pac", ".0123")
+		bams=config["pipedir"] + "/" + "alignments/{sample}.bwa.srt.bam"
 	output:
-		temp("alignments/{sample}.bwa.srt.bam")
-	log:
-		"logs/{sample}.bwa_align.log"
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bai",
+		metrics="qc/{sample}.MarkDuplicates.metrics.txt"
+	threads: 5
 	message:
-		"Mapping reads with bwa-mem2 on tumor {wildcards.sample}"
-	benchmark:
-		"SnakeWES/benchmarks/{sample}.bwaTumor.txt"
-	params:
-		#extra=r"-R '@RG\tID:{sample}\tSM:{sample}_tumor'",
-		sort="samtools",  
-		sort_order="coordinate"
-	threads: 1
-	wrapper:
-		"v3.3.3/bio/bwa-mem2/mem"
-
-rule PicarRemoveDuplicates:
-	input:
-		bams="alignments/{sample}.bwa.srt.bam"
-	output:
-		bam=temp("alignments/{sample}.bwa.dd.bam"),
-		bai=temp("alignments/{sample}.bwa.dd.bai"),
-		metrics="data/{sample}.bwa.metrics.picard.txt"
-	threads: 1
-	log:
-		"logs/{sample}.PicarRemoveDuplicates.log"
-	message:
-		"Mark and remove PCR-optical duplicates - Picard"
+		"Mark and remove PCR-optical duplicates"
 	params:
 		extra="--REMOVE_DUPLICATES true --CREATE_INDEX true --VALIDATION_STRINGENCY LENIENT"
 	resources:
 		mem_mb=4096    
+	log:
+		"logs/{sample}.PicardRemoveDuplicates.log"
 	wrapper:
 		 "v3.3.3/bio/picard/markduplicates"
 
-rule SamtoolsRemoveDuplicates:
-	input:
-		bams="alignments/{sample}.bwa.dd.bam",
-		bai="alignments/{sample}.bwa.dd.bai"
-	output:
-		bam=temp("alignments/{sample}.bwa.dd.samtools.bam"),
-		bai=temp("alignments/{sample}.bwa.dd.samtools.bam.bai"),
-		metrics="data/{sample}.bwa.metrics.samtools.txt"
-	threads: 1
-	envs:
-		"../envs/samtools.yaml"
-	log:
-		"logs/{sample}.SamtoolsRemoveDuplicates.log"
-	message:
-		"Mark and remove PCR-optical duplicates - Samtools"
-	shell:
-		 "samtools markdup -@ {threads} -r -f {input.metrics} {input.bams} {output.bam} && samtools index -@ {threads} {output.bam}"
-
 rule SamtoolsFilter:
 	input:
-		bam="alignments/{sample}.bwa.dd.samtools.bam",
-		bai="alignments/{sample}.bwa.dd.samtools.bam.bai"
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bai"
 	output:
-		bam="alignments/{sample}.bwa.filtered.bam",
-		bai="alignments/{sample}.bwa.filtered.bam.bai"
-	threads: 1
-	envs:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.bam.bai"
+	threads: 5
+	conda:
 		"../envs/filterbam.yaml"
 	log:
 		"logs/{sample}.SamtoolsFilter.log"
 	params:
 		script="workflow/scripts/bamtools.filter.json"
 	shell:
-		 "samtools view -F 0x004 -F 0x004 -F 0x0008 -f 0x001 -F 0x0400 -F 0x0400 -b {input.bam} | bamtools filter -out {output} -script {params.script}"
+		 "samtools view -F 0x004 -F 0x004 -F 0x0008 -f 0x001 -F 0x0400 -F 0x0400 -q 1 -b {input.bam} | bamtools filter -out {output.bam} -script {params.script} 2>{log} && samtools index -@ {threads} {output.bam}"
+
+rule SamtoolsAddReadGroup:
+	input:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.bam.bai"
+	output:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam.bai"
+	threads: 5
+	conda:
+		"../envs/samtools.yaml"
+	log:
+		"logs/{sample}.SamtoolsAddReadGroup.log"
+	params:
+		RG=r"'@RG\tID:{sample}\tSM:{sample}'"
+	shell:
+		 "samtools addreplacerg -r {params.RG} -@ {threads} -O BAM -o {output.bam} {input.bam} && samtools index -@ {threads} {output.bam} 2>{log}"
+
+rule SamtoolsStats:
+	input:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam.bai"
+	output:
+		"qc/{sample}.bwa.stats"
+	threads: 5
+	conda:
+		"../envs/samtools.yaml"
+	log:
+		"logs/{sample}.SamtoolsStats.log"
+	params:
+		ref=config["genome"]
+	shell:
+		 "samtools stats -@ {threads} --reference {params.ref} {input.bam} > {output} 2>{log}"
+
+rule SamtoolsFlagStats:
+	input:
+		metrics="qc/{sample}.MarkDuplicates.metrics.txt",
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam.bai"
+	output:
+		"qc/{sample}.bwa.flagstat"
+	threads: 5
+	conda:
+		"../envs/samtools.yaml"
+	log:
+		"logs/{sample}.SamtoolsFlagStats.log"
+	shell:
+		 "samtools flagstat -@ {threads} {input.bam} > {output} 2>{log}"
+
+rule SamtoolsStatsRaw:
+	input:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bai"
+	output:
+		"qc/{sample}.bwa.raw.stats"
+	threads: 5
+	conda:
+		"../envs/samtools.yaml"
+	log:
+		"logs/{sample}.SamtoolsStatsRaw.log"
+	params:
+		ref=config["genome"]
+	shell:
+		 "samtools stats -@ {threads} --reference {params.ref} {input.bam} > {output} 2>{log}"
+
+rule SamtoolsFlagStatsRaw:
+	input:
+		metrics="qc/{sample}.MarkDuplicates.metrics.txt",
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.mdup.bai"
+	output:
+		"qc/{sample}.bwa.raw.flagstat"
+	threads: 5
+	conda:
+		"../envs/samtools.yaml"
+	log:
+		"logs/{sample}.SamtoolsFlagStatsRaw.log"
+	shell:
+		 "samtools flagstat -@ {threads} {input.bam} > {output} 2>{log}"
