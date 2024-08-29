@@ -7,6 +7,7 @@ include: "rules/picard.smk"
 include: "rules/preseq.smk"
 include: "rules/BigWig.smk"
 include: "rules/macs2.smk"
+include: "rules/process.smk"
 
 
 rule ChIPseq:
@@ -18,7 +19,7 @@ rule ChIPseq:
 		expand(f"qc/{{sample}}.quality_yield_metrics", sample=config["samples"].values()),
 		#expand(f"qc/{{sample}}.est_lib_complex_metrics.txt", sample=config["samples"].values())
 		expand(f"qc/{{sample}}.lc_extrap.txt", sample=config["samples"].values()),
-		expand(f"results/{{sample}}.bigWig",sample=config["samples"].values()),
+		expand(f"results/{{sample}}.bwa.bw",sample=config["samples"].values()),
 		expand(f"peaks/narrow/IgG/{{sample}}_peaks.narrowPeak", sample=config["lactate_macs2"].values()),
 		expand(f"peaks/narrow/10_input/{{sample}}_peaks.narrowPeak", sample=config["lactate_macs2"].values()),
 		expand(f"peaks/narrow/IgG/{{sample}}_peaks.narrowPeak", sample=config["controls_macs2"].values()),
@@ -26,7 +27,13 @@ rule ChIPseq:
 		expand(f"peaks/broad/IgG/{{sample}}_peaks.broadPeak", sample=config["lactate_macs2"].values()),
 		expand(f"peaks/broad/10_input/{{sample}}_peaks.broadPeak", sample=config["lactate_macs2"].values()),
 		expand(f"peaks/broad/IgG/{{sample}}_peaks.broadPeak", sample=config["controls_macs2"].values()),
-		expand(f"peaks/broad/10_input/{{sample}}_peaks.broadPeak", sample=config["controls_macs2"].values())
+		expand(f"peaks/broad/10_input/{{sample}}_peaks.broadPeak", sample=config["controls_macs2"].values()),
+		f"results/narrow/10_input/total.multicov.parsed.bed",
+		f"results/broad/10_input/total.multicov.parsed.bed",
+		expand(f"peaks/narrow/LAvsCtr/{{sample}}_peaks.narrowPeak", sample=config["lactate_macs2"].values()),
+		expand(f"peaks/broad/LAvsCtr/{{sample}}_peaks.broadPeak", sample=config["lactate_macs2"].values()),
+		f"results/narrow/LAvsCtr/total.multicov.parsed.bed",
+		f"results/broad/LAvsCtr/total.multicov.parsed.bed"
 
 rule QC:
 	input:
