@@ -52,16 +52,16 @@ rule BedGraphToBigWig:
 	shell:
 		"bedGraphToBigWig {input.bedgraph} {input.chromo_sizes} {output} 2>{log}"
 
-#rule GenerateBigWig:
-#	input:
-#		bam="alignments/{sample}.bwa.filtered.bam",
-#		bai="alignments/{sample}.bwa.filtered.bam.bai"
-#	output:
-#		"alignments/{sample}.bwa.bw",
-#	log:
-#		"logs/{sample}.GenerateBigWig.log",
-#	threads: 4  
-#	conda:
-#		"../envs/deeptools.yaml"
-#	shell:
-#		"bamCoverage -b {input.bam} -o {output} --normalizeUsing RPKM --binSize 1 --numberOfProcessors {threads} -v 2>{log}"
+rule GenerateBigWig:
+	input:
+		bam=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam",
+		bai=config["pipedir"] + "/" + "alignments/{sample}.bwa.filtered.rg.bam.bai"
+	output:
+		"results/{sample}.bwa.bw",
+	log:
+		"logs/{sample}.GenerateBigWig.log",
+	threads: 4  
+	conda:
+		"../envs/deeptools.yaml"
+	shell:
+		"bamCoverage -b {input.bam} -o {output} --normalizeUsing RPGC --effectiveGenomeSize 2913022398 --exactScaling --binSize 1 --numberOfProcessors {threads} -v 2>{log}"
